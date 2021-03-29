@@ -153,7 +153,7 @@ void Processor::Run(const char* in_file, size_t number_of_blocks)
                 break;
             case END:
                 printf("End of the program\n");
-                break;
+                return;
             case SQRT:
                 CommandSqrt();
                 break;

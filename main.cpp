@@ -1,5 +1,5 @@
-#include"functions_compiler.h"
-#include"functions_processor.h"
+#include"compiler.h"
+#include"processor.h"
 
 int main()
 {

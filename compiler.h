@@ -11,10 +11,10 @@ class Compiler
         size_t* addresses;
 
         size_t number_of_lexems;
-        Lexem* syntax;
+        Lexem* lexic;
 
         size_t number_of_instructions;
-        Instruction* semantic;
+        Instruction* syntax;
 
         Flag GetFlag(char data[]);
         double GetObject(char data[]);
@@ -22,14 +22,14 @@ class Compiler
         Register GetRegister(char data[]);
         size_t CorrectLabel(char data[]);
         void LabelRegistrator(char** pointers);
-        void SyntaxAnalysis(char** pointers);
-        void SemanticAnalysis();
+        void LexicAnalysis(char** pointers);
+        void SyntaxAnalysis();
         int FlagCMD(size_t lexem_counter, size_t instr_counter);
         void FlagLABEL(size_t lexem_counter, size_t instr_counter);
         void CommandWithArgument(size_t lexem_counter, size_t instr_counter);
         void CommandNoArgument(size_t lexem_counter, size_t instr_counter);
         void CommandJump(size_t lexem_counter, size_t instr_counter);
-        void SemanticToFile(const char* out_file);
+        void SyntaxToFile(const char* out_file);
 
     public:
         Compiler()
@@ -39,10 +39,10 @@ class Compiler
             addresses = NULL;
           
             number_of_lexems = 0;
-            syntax = NULL;
+            lexic = NULL;
 
             number_of_instructions = 0;
-            semantic = NULL;
+            syntax = NULL;
         }
         size_t Compile(const char* in_file, const char* out_file);
         ~Compiler()
@@ -52,8 +52,8 @@ class Compiler
             delete [] labels;
             //delete [] functions;
             delete [] addresses;
+            delete [] lexic;
             delete [] syntax;
-            delete [] semantic;
         }
 };
 
@@ -277,37 +277,37 @@ void Compiler::LabelRegistrator(char** pointers)
         }
 }
 
-void Compiler::SyntaxAnalysis(char** pointers)
+void Compiler::LexicAnalysis(char** pointers)
 {
     assert(pointers != NULL);
-    syntax = new Lexem[number_of_lexems];
+    lexic = new Lexem[number_of_lexems];
     for(size_t lexem_counter = 0; lexem_counter < number_of_lexems; ++lexem_counter)
     {
         /// Get flag of the command
         Flag flag = GetFlag(pointers[lexem_counter]);
         if(flag == ERR_FLAG)
             CompError(UNKNOWN, lexem_counter + 1);
-        syntax[lexem_counter].flag = flag;
+        lexic[lexem_counter].flag = flag;
 
         /// Get the description of the command
-        syntax[lexem_counter].obj = GetObject(pointers[lexem_counter]);
+        lexic[lexem_counter].obj = GetObject(pointers[lexem_counter]);
         //if(flag == LABEL || flag == FUNCTION)
         if(flag == LABEL || flag == LABEL_ARG)
-            if(syntax[lexem_counter].obj == NOT_FOUND)
+            if(lexic[lexem_counter].obj == NOT_FOUND)
                 CompError(UNKNOWN, lexem_counter + 1);
     }
 }
 
-void Compiler::SemanticAnalysis()
+void Compiler::SyntaxAnalysis()
 {
-    semantic = new Instruction[number_of_lexems];
+    syntax = new Instruction[number_of_lexems];
     addresses = new size_t[number_of_labels];
     int instr_counter = 0;
     int number = 0;
     for(size_t lexem_counter = 0; lexem_counter < number_of_lexems; ++lexem_counter)
     {
         /// Get information about flag in element
-        switch(syntax[lexem_counter].flag)
+        switch(lexic[lexem_counter].flag)
         {
             case CMD:
                 number = FlagCMD(lexem_counter, instr_counter);
@@ -325,7 +325,7 @@ void Compiler::SemanticAnalysis()
                 break;
 
             default:
-                printf("%d\n", syntax[lexem_counter].flag);
+                printf("%d\n", lexic[lexem_counter].flag);
                 exit(1);
         }
         ++instr_counter;
@@ -334,11 +334,11 @@ void Compiler::SemanticAnalysis()
 
     /// Addresses of jumps
     for(size_t i = 0; i < number_of_lexems; ++i)
-        if(semantic[i].arg_flag == LABEL_ARG)
+        if(syntax[i].arg_flag == LABEL_ARG)
         {
-            semantic[i].arg_flag = ADDRESS;
-            int lab_num = (int)semantic[i].value;
-            semantic[i].value = addresses[lab_num];
+            syntax[i].arg_flag = ADDRESS;
+            int lab_num = (int)syntax[i].value;
+            syntax[i].value = addresses[lab_num];
         }
 }
 
@@ -346,8 +346,8 @@ void Compiler::SemanticAnalysis()
 int Compiler::FlagCMD(size_t lexem_counter, size_t instr_counter)
 {
     /// Handling all syntax errors
-    semantic[instr_counter].cmd_flag = CMD;
-    switch((int)syntax[lexem_counter].obj)
+    syntax[instr_counter].cmd_flag = CMD;
+    switch((int)lexic[lexem_counter].obj)
     {
         case PUSH:
         case POP:
@@ -382,7 +382,7 @@ int Compiler::FlagCMD(size_t lexem_counter, size_t instr_counter)
             return 1;
 
         default:
-            printf("%lg\n", syntax[lexem_counter].obj);
+            printf("%lg\n", lexic[lexem_counter].obj);
             exit(1);
     }
 }
@@ -397,21 +397,21 @@ void Compiler::CommandWithArgument(size_t lexem_counter, size_t instr_counter)
     if(lexem_counter == number_of_lexems - 2)
         CompError(WRONG_END, instr_counter + 1);
 
-    semantic[instr_counter].cmd_code = (Command)syntax[lexem_counter].obj;
+    syntax[instr_counter].cmd_code = (Command)lexic[lexem_counter].obj;
 
     /// Next step is depend on type of argument
-    switch(syntax[lexem_counter + 1].flag)
+    switch(lexic[lexem_counter + 1].flag)
     {
     case REG:
-        semantic[instr_counter].arg_flag = REG;
-        semantic[instr_counter].value = syntax[lexem_counter + 1].obj;
+        syntax[instr_counter].arg_flag = REG;
+        syntax[instr_counter].value = lexic[lexem_counter + 1].obj;
         break;
 
     case NUM:
-        if(syntax[lexem_counter].obj != PUSH)
+        if(lexic[lexem_counter].obj != PUSH)
             CompError(NEED_ARG, instr_counter + 1);
-        semantic[instr_counter].arg_flag = NUM;
-        semantic[instr_counter].value = syntax[lexem_counter + 1].obj;
+        syntax[instr_counter].arg_flag = NUM;
+        syntax[instr_counter].value = lexic[lexem_counter + 1].obj;
         break;
 
     default:
@@ -425,71 +425,71 @@ void Compiler::CommandNoArgument(size_t lexem_counter, size_t instr_counter)
     /// The next word CAN'T be an argument
     /// if next word exist
     if(lexem_counter != number_of_lexems - 1
-       && syntax[lexem_counter + 1].flag != CMD
-       && syntax[lexem_counter + 1].flag != LABEL)
+       && lexic[lexem_counter + 1].flag != CMD
+       && lexic[lexem_counter + 1].flag != LABEL)
        CompError(NO_ARG, instr_counter + 1);
 
     /// List can't end with this command
     if(lexem_counter == number_of_lexems - 1
-       && syntax[lexem_counter].obj != END)
+       && lexic[lexem_counter].obj != END)
         CompError(WRONG_END, instr_counter + 1);
 
-    semantic[instr_counter].cmd_code = (Command)syntax[lexem_counter].obj;
-    semantic[instr_counter].arg_flag = NUL;
-    semantic[instr_counter].value = 0;
+    syntax[instr_counter].cmd_code = (Command)lexic[lexem_counter].obj;
+    syntax[instr_counter].arg_flag = NUL;
+    syntax[instr_counter].value = 0;
 }
 
 void Compiler::CommandJump(size_t lexem_counter, size_t instr_counter)
 {
     /// The next word must be label argument
     if(lexem_counter == number_of_lexems - 1
-       || syntax[lexem_counter + 1].flag != LABEL_ARG)
+       || lexic[lexem_counter + 1].flag != LABEL_ARG)
        CompError(NEED_ARG, instr_counter + 1);
 
-    semantic[instr_counter].cmd_code = (Command)syntax[lexem_counter].obj;
-    semantic[instr_counter].arg_flag = LABEL_ARG;
-    semantic[instr_counter].value = syntax[lexem_counter + 1].obj;
+    syntax[instr_counter].cmd_code = (Command)lexic[lexem_counter].obj;
+    syntax[instr_counter].arg_flag = LABEL_ARG;
+    syntax[instr_counter].value = lexic[lexem_counter + 1].obj;
 }
 
 void Compiler::FlagLABEL(size_t lexem_counter, size_t instr_counter)
 {
-    int index = (int)syntax[lexem_counter].obj;
+    int index = (int)lexic[lexem_counter].obj;
     addresses[index] = instr_counter;
 
-    semantic[instr_counter].cmd_flag = LABEL;
-    semantic[instr_counter].cmd_code = ERR_CMD;
-    semantic[instr_counter].arg_flag = NUL;
-    semantic[instr_counter].value = syntax[lexem_counter].obj;
+    syntax[instr_counter].cmd_flag = LABEL;
+    syntax[instr_counter].cmd_code = ERR_CMD;
+    syntax[instr_counter].arg_flag = NUL;
+    syntax[instr_counter].value = lexic[lexem_counter].obj;
 }
 
-void TestSemantic(Instruction* semantic, size_t num)
+void TestSyntax(Instruction* syntax, size_t num)
 {
     printf("\n");
-    std::cout << "Semantic analysis" << std::endl << std::endl;
+    std::cout << "Syntax analysis" << std::endl << std::endl;
     for(size_t i = 0; i < num; ++i)
     {
         std::cout << i << " command" << std::endl;
-        std::cout << semantic[i].cmd_flag << std::endl;
-        std::cout << semantic[i].cmd_code << std::endl;
-        std::cout << semantic[i].arg_flag << std::endl;
-        std::cout << semantic[i].value << std::endl << std::endl;
+        std::cout << syntax[i].cmd_flag << std::endl;
+        std::cout << syntax[i].cmd_code << std::endl;
+        std::cout << syntax[i].arg_flag << std::endl;
+        std::cout << syntax[i].value << std::endl << std::endl;
     }
     return;
 }
 
-void Compiler::SemanticToFile(const char* out_file)
+void Compiler::SyntaxToFile(const char* out_file)
 {
     assert(out_file != NULL);
     FILE * out = fopen(out_file, "w");
     for(size_t i = 0; i < number_of_instructions; ++i)
     {
-        fprintf(out, "%d", semantic[i].cmd_flag);
+        fprintf(out, "%d", syntax[i].cmd_flag);
         fputs(" ", out);
-        fprintf(out, "%d", semantic[i].cmd_code);
+        fprintf(out, "%d", syntax[i].cmd_code);
         fputs(" ", out);
-        fprintf(out, "%d", semantic[i].arg_flag);
+        fprintf(out, "%d", syntax[i].arg_flag);
         fputs(" ", out);
-        fprintf(out, "%g", semantic[i].value);
+        fprintf(out, "%g", syntax[i].value);
         fputs("\n", out);
     }
     fclose(out);
@@ -511,16 +511,16 @@ size_t Compiler::Compile(const char* in_file, const char* out_file)
     /// Registration of labels and functions
     LabelRegistrator(pointers);
 
-    /// Syntax analysis
-    SyntaxAnalysis(pointers);
+    /// Lexic analysis
+    LexicAnalysis(pointers);
     delete [] pointers;
     delete [] buffer;
 
-    /// Semantic analysis
-    SemanticAnalysis();
+    /// Syntax analysis
+    SyntaxAnalysis();
 
     /// Printing in the .o file
-    SemanticToFile(out_file);
+    SyntaxToFile(out_file);
 
     return number_of_instructions;
 }
